@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<title>Document</title>
+		<style>
+			body {
+				padding: 0;
+				margin: 0;
+			}
+		</style>
+	</head>
+	<body style="min-height: 100vh" oncontextmenu="return false;">
+		<canvas id="canvas"></canvas>
+		<script type="module">
+			const canvas = document.querySelector("#canvas");
+
+			let frame = 0;
+			let freeze = false;
+
+			let scale = 1;
+
+			canvas.width = window.innerWidth;
+			canvas.height = window.innerHeight;
+			const ctx = canvas.getContext("2d");
+
+			ctx.scale(scale, scale);
+
+			let circle;
+			// data
+
+			let gravityDots = [];
+			let particles = [];
+			let enemies = [];
+
+			let score = 0;
+			let rage = 0;
+
+			// classes
+
+			class GravityDot {
+				constructor(x, y) {
+					(this.x = x), (this.y = y);
+				}
+
+				render() {
+					ctx.fillStyle = "#452255";
+
+					ctx.beginPath();
+					ctx.arc(this.x, this.y, 2 / scale, 0, 2 * Math.PI);
+					ctx.fill();
+				}
+			}
+
+			class Particle {
+				constructor(x, y, velocity, live) {
+					this.x = x;
+					(this.y = y), (this.velocity = velocity);
+					this.live = live;
+					this.curLive = live;
+				}
+
+				render() {
+					this.curLive -= 1;
+					ctx.fillStyle = `rgba(234, 179, 8,${
+						this.curLive / this.live
+					})`;
+					this.x += this.velocity.x;
+					this.y += this.velocity.y;
+					// console.log(`rgba{0,0,0,${this.curLive / this.live}}`);
+					// this.velocity.y *= 0.95;
+					// this.velocity.x *= 0.95;
+
+					ctx.fillRect(this.x, this.y, 2 / scale, 2 / scale);
+
+					if (
+						this.curLive < 1 ||
+						this.x < 0 ||
+						this.x > canvas.width ||
+						this.y < 0 ||
+						this.y > canvas.height
+					) {
+						particles = particles.filter(
+							(particle) => particle != this
+						);
+					}
+				}
+			}
+
+			class Enemy {
+				constructor(x, y) {
+					(this.x = x), (this.y = y);
+					this.live = 0;
+				}
+
+				kill(shame) {
+					for (let p = 100; p <= 150; p++) {
+						particles.push(
+							new Particle(
+								this.x,
+								this.y,
+								{
+									x:
+										Math.sin(p) * Math.random() * 15 +
+										circle.velocity.x / 3,
+									y:
+										Math.cos(p) * Math.random() * 15 +
+										circle.velocity.y / 3,
+								},
+								100 + Math.random() * 10
+							)
+						);
+					}
+					enemies = enemies.filter((enemie) => enemie != this);
+					!shame
+						? setTimeout(() => {
+								freeze = true;
+								rage += 300;
+								score += 1000;
+						  }, 15)
+						: score - 3000 >= 0 && (score -= 3000);
+				}
+
+				render() {
+					this.live += 1;
+
+					ctx.fillStyle = `rgba(${202 + this.live / 3}, ${
+						138 - this.live / 3
+					}, 4, 1)`;
+
+					ctx.shadowColor = "#ca8a04";
+					ctx.shadowBlur = 32;
+
+					if (
+						Math.abs(this.x - circle.x) +
+							Math.abs(this.y - circle.y) <
+							30 ||
+						this.live >= 300
+					) {
+						this.kill(this.live >= 300);
+					}
+
+					ctx.beginPath();
+					ctx.arc(
+						this.x,
+						this.y,
+						8 / scale + Math.sin(frame / 20),
+						0,
+						2 * Math.PI
+					);
+					ctx.fill();
+				}
+			}
+
+			class Circle {
+				constructor(x, y) {
+					(this.x = x),
+						(this.y = y),
+						(this.velocity = { x: 0, y: 0 });
+				}
+
+				//smooth
+				// render() {
+				//   ctx.fillStyle = "#002255";
+				//   this.x += this.velocity.x;
+				//   this.y += this.velocity.y;
+
+				//   let xIsNegative = mousePosition[0] - this.x < 0;
+				//   let xDistance = Math.abs(mousePosition[0] - this.x);
+
+				//   let yIsNegative = mousePosition[1] - this.y < 0;
+				//   let yDistance = Math.abs(mousePosition[1] - this.y);
+
+				//   let xVel = xDistance * ((xDistance / canvas.width) * 2);
+				//   this.velocity.x = xIsNegative ? -xVel : xVel;
+
+				//   let yVel = yDistance * ((yDistance / canvas.height) * 2);
+				//   this.velocity.y = yIsNegative ? -yVel : yVel;
+
+				//   ctx.beginPath();
+				//   ctx.arc(this.x, this.y, 8, 0, 2 * Math.PI);
+				//   ctx.fill();
+				// }
+
+				calculateVelocity(x, y) {
+					let xIsNegative = x - this.x < 0;
+					let xVel = Math.abs(x - this.x) / 20;
+
+					this.velocity.x += xIsNegative ? -xVel : xVel;
+
+					let yIsNegative = y - this.y < 0;
+					let yVel = Math.abs(y - this.y) / 20;
+
+					this.velocity.y += yIsNegative ? -yVel : yVel;
+				}
+
+				render() {
+					ctx.fillStyle = "#64748b";
+
+					ctx.shadowColor = "#64748b";
+					ctx.shadowBlur = 32;
+
+					this.x += this.velocity.x;
+					this.y += this.velocity.y;
+
+					for (let i = 0; i < gravityDots.length; i++) {
+						this.calculateVelocity(
+							gravityDots[i].x,
+							gravityDots[i].y
+						);
+					}
+
+					this.velocity.y *= 0.95;
+					this.velocity.x *= 0.95;
+
+					ctx.beginPath();
+					ctx.arc(this.x, this.y, 8 / scale, 0, 2 * Math.PI);
+					ctx.fill();
+				}
+			}
+
+			// constants
+
+			let mousegraviry = new GravityDot(0, 0);
+
+			// listeners
+
+			window.addEventListener("keydown", (ev) => {
+				if (ev.key == "g") {
+					gravityDots.push(
+						new GravityDot(mousePosition[0], mousePosition[1])
+					);
+				}
+				if (ev.key == "e") {
+					enemies.push(new Enemy(mousePosition[0], mousePosition[1]));
+				}
+				if (ev.key == "s") {
+					randomSpawn();
+				}
+			});
+			let mousePosition = [
+				canvas.width / scale / 2,
+				canvas.height / scale / 2,
+			];
+			window.addEventListener("mousemove", (ev) => {
+				mousePosition = [ev.clientX / scale, ev.clientY / scale];
+				mousegraviry.x = ev.clientX / scale;
+				mousegraviry.y = ev.clientY / scale;
+			});
+
+			window.addEventListener("mousedown", (ev) => {
+				ev.preventDefault();
+				ev.stopImmediatePropagation();
+				if (ev.button == 0) {
+					gravityDots.push(mousegraviry);
+				}
+			});
+			window.addEventListener("mouseup", (ev) => {
+				ev.preventDefault();
+				ev.stopImmediatePropagation();
+				if (ev.button == 0) {
+					gravityDots = gravityDots.filter(
+						(dot) => dot != mousegraviry
+					);
+				}
+			});
+
+			// functions
+			function randomSpawn() {
+				enemies.push(
+					new Enemy(
+						(Math.random() * canvas.width) / scale,
+						(Math.random() * canvas.height) / scale
+					)
+				);
+			}
+
+			// initialization
+
+			circle = new Circle(
+				canvas.width / scale / 2,
+				canvas.height / scale / 2
+			);
+
+			const animate = () => {
+				let factor = Math.round(180 * (score / (50000 + rage * 10)));
+				if (frame % (180 - factor) == 0) {
+					randomSpawn();
+				}
+
+				rage >= 1 && (rage -= 1);
+
+				ctx.fillStyle = `rgba(${
+					rage / 60 + (rage / 90) * Math.abs(Math.sin(frame / 100))
+				},0,0,1)`;
+				ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+				circle.render();
+
+				for (let i = 0; i < particles.length; i++) {
+					particles[i].render();
+				}
+
+				for (let i = 0; i < gravityDots.length; i++) {
+					gravityDots[i].render();
+				}
+
+				for (let i = 0; i < enemies.length; i++) {
+					enemies[i].render();
+				}
+				if (freeze) {
+					ctx.fillStyle = "#ffffff99";
+					ctx.fillRect(0, 0, canvas.width, canvas.height);
+					setTimeout(() => {
+						freeze = false;
+						requestAnimationFrame(animate);
+					}, 150);
+				} else {
+					requestAnimationFrame(animate);
+				}
+
+				ctx.fillStyle = "#fff";
+				ctx.shadowColor = "#64748b";
+				ctx.shadowBlur = 32;
+				ctx.font = "15px mono";
+				ctx.fillText(
+					`Score: ${score}`,
+					16,
+					canvas.height / scale - 64 - 16
+				);
+				ctx.fillText(
+					`Rage: ${rage}`,
+					16,
+					canvas.height / scale - 64 - 32
+				);
+				ctx.fillText(
+					`Factor: ${factor}`,
+					16,
+					canvas.height / scale - 64
+				);
+
+				frame += 1;
+			};
+			animate();
+		</script>
+	</body>
+</html>
